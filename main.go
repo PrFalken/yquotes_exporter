@@ -14,12 +14,13 @@
 package main
 
 import (
+ 	"fmt"
 	"flag"
 	"net/http"
 	"time"
 
 	"github.com/doneland/yquotes"
-	"github.com/golang/glog"
+	"github.com/sirupsen/logrus"	
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -60,6 +61,7 @@ func init() {
 
 func main() {
 	flag.Parse()
+	fmt.Println("hello")
 	http.HandleFunc("/price", getPrice)
 	http.Handle("/metrics", promhttp.Handler())
 	http.ListenAndServe(*addr, nil)
@@ -80,16 +82,14 @@ func (c collector) Collect(ch chan<- prometheus.Metric) {
 		}
 
 		queryCount.WithLabelValues(s).Inc()
-		if glog.V(2) {
-			glog.Infof("looking up %s\n", s)
-		}
+		logrus.Info("looking up %s\n", s)
 
 		start := time.Now()
 		stock, err := yquotes.NewStock(s, false)
 		queryDuration.Observe(float64(time.Since(start).Seconds()))
 
 		if err != nil {
-			glog.Infof("error: %v\n", err)
+			logrus.Info("error: %v\n", err)
 			errorCount.WithLabelValues(s).Inc()
 			continue
 		}
@@ -148,14 +148,14 @@ func (c collector) Collect(ch chan<- prometheus.Metric) {
 func getPrice(w http.ResponseWriter, r *http.Request) {
 	syms, ok := r.URL.Query()["sym"]
 	if !ok {
-		glog.Infof("no syms given")
+		logrus.Info("no syms given")
 		return
 	}
-
 	registry := prometheus.NewRegistry()
 
 	collector := collector(syms)
 	registry.MustRegister(collector)
+
 
 	// Delegate http serving to Promethues client library, which will call collector.Collect.
 	h := promhttp.HandlerFor(registry, promhttp.HandlerOpts{})
